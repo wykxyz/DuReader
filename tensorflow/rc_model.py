@@ -103,6 +103,7 @@ class RCModel(object):
         self.start_label = tf.placeholder(tf.int32, [None])
         self.end_label = tf.placeholder(tf.int32, [None])
         self.dropout_keep_prob = tf.placeholder(tf.float32)
+        self.passage_match = tf.placeholder(tf.float32, [None,None])
 
     def _embed(self):
         """
@@ -117,6 +118,8 @@ class RCModel(object):
             )
             self.p_emb = tf.nn.embedding_lookup(self.word_embeddings, self.p)
             self.q_emb = tf.nn.embedding_lookup(self.word_embeddings, self.q)
+            self.p_emb = tf.concat([self.p_emb, tf.expand_dims(self.passage_match, axis=2)], axis=2)
+            self.q_emb = tf.concat([self.q_emb, tf.expand_dims(tf.ones_like(self.q, dtype=tf.float32), axis=2)], axis=2)
 
     def _encode(self):
         """
@@ -231,7 +234,8 @@ class RCModel(object):
                          self.q_length: batch['question_length'],
                          self.start_label: batch['start_id'],
                          self.end_label: batch['end_id'],
-                         self.dropout_keep_prob: dropout_keep_prob}
+                         self.dropout_keep_prob: dropout_keep_prob,
+                         self.passage_match: batch['passage_exact_match']}
             _, loss = self.sess.run([self.train_op, self.loss], feed_dict)
             total_loss += loss * len(batch['raw_data'])
             total_num += len(batch['raw_data'])
@@ -298,7 +302,8 @@ class RCModel(object):
                          self.q_length: batch['question_length'],
                          self.start_label: batch['start_id'],
                          self.end_label: batch['end_id'],
-                         self.dropout_keep_prob: 1.0}
+                         self.dropout_keep_prob: 1.0,
+                         self.passage_match: batch['passage_exact_match']}
             start_probs, end_probs, loss = self.sess.run([self.start_probs,
                                                           self.end_probs, self.loss], feed_dict)
 

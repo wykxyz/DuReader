@@ -77,10 +77,12 @@ class BRCDataset(object):
                 for d_idx, doc in enumerate(sample['documents']):
                     if train:
                         most_related_para = doc['most_related_para']
+                        match_label = [int(word in sample['question_tokens']) for word in doc['segmented_paragraphs'][most_related_para]]
                         sample['passages'].append(
                             {'passage_tokens': doc['segmented_paragraphs'][most_related_para],
-                             'is_selected': doc['is_selected']}
+                             'is_selected': doc['is_selected'], 'match_label': match_label}
                         )
+                       ## print sample['question_tokens'],  doc['segmented_paragraphs'][most_related_para], match_label
                     else:
                         para_infos = []
                         for para_tokens in doc['segmented_paragraphs']:
@@ -96,7 +98,8 @@ class BRCDataset(object):
                         fake_passage_tokens = []
                         for para_info in para_infos[:1]:
                             fake_passage_tokens += para_info[0]
-                        sample['passages'].append({'passage_tokens': fake_passage_tokens})
+                        match_label = [int(word in sample['segmented_question']) for word in fake_passage_tokens]
+                        sample['passages'].append({'passage_tokens': fake_passage_tokens, 'match_label':match_label})
                 data_set.append(sample)
         return data_set
 
@@ -116,7 +119,8 @@ class BRCDataset(object):
                       'passage_token_ids': [],
                       'passage_length': [],
                       'start_id': [],
-                      'end_id': []}
+                      'end_id': [],
+                      'passage_exact_match': []}
         max_passage_num = max([len(sample['passages']) for sample in batch_data['raw_data']])
         max_passage_num = min(self.max_p_num, max_passage_num)
         for sidx, sample in enumerate(batch_data['raw_data']):
@@ -127,11 +131,14 @@ class BRCDataset(object):
                     passage_token_ids = sample['passages'][pidx]['passage_token_ids']
                     batch_data['passage_token_ids'].append(passage_token_ids)
                     batch_data['passage_length'].append(min(len(passage_token_ids), self.max_p_len))
+                    batch_data['passage_exact_match'].append(sample['passages'][pidx]['match_label'])
                 else:
                     batch_data['question_token_ids'].append([])
                     batch_data['question_length'].append(0)
                     batch_data['passage_token_ids'].append([])
                     batch_data['passage_length'].append(0)
+                    batch_data['passage_exact_match'].append([])
+
         batch_data, padded_p_len, padded_q_len = self._dynamic_padding(batch_data, pad_id)
         for sample in batch_data['raw_data']:
             if 'answer_passages' in sample and len(sample['answer_passages']):
@@ -142,6 +149,7 @@ class BRCDataset(object):
                 # fake span for some samples, only valid for testing
                 batch_data['start_id'].append(0)
                 batch_data['end_id'].append(0)
+        
         return batch_data
 
     def _dynamic_padding(self, batch_data, pad_id):
@@ -154,6 +162,8 @@ class BRCDataset(object):
                                            for ids in batch_data['passage_token_ids']]
         batch_data['question_token_ids'] = [(ids + [pad_id] * (pad_q_len - len(ids)))[: pad_q_len]
                                             for ids in batch_data['question_token_ids']]
+        batch_data['passage_exact_match'] = [(ids + [pad_id]*(pad_p_len-len(ids)))[: pad_p_len]
+                                            for ids in batch_data['passage_exact_match']]
         return batch_data, pad_p_len, pad_q_len
 
     def word_iter(self, set_name=None):

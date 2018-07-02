@@ -173,6 +173,3 @@ class PointerNetDecoder(object):
             start_prob = (fw_outputs[0:, 0, 0:] + bw_outputs[0:, 1, 0:]) / 2
             end_prob = (fw_outputs[0:, 1, 0:] + bw_outputs[0:, 0, 0:]) / 2
             return start_prob, end_prob
-
-
-
